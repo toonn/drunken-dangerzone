@@ -27,11 +27,15 @@ public class Sender {
     public void send(String command, String[] arguments) {
         String commandString = command;
         if (arguments != null)
-            for (String arg : arguments)
-                commandString += arg;
+            for (String arg : arguments) {
+                if (arg.length() == 0)
+                    arg = "\b";
+                commandString += ProtocolDB.COMMAND_DELIMITER + arg;
+            }
 
         try {
             out.writeUTF(commandString);
+            System.out.println("Sent: " + commandString);
         } catch (IOException e) {
             e.printStackTrace();
         }

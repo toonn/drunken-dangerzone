@@ -31,8 +31,12 @@ public class Listener implements Runnable {
             try {
                 clientInput = in.readUTF();
             } catch (IOException e) {
-                e.printStackTrace();
+                // e.printStackTrace();
+                System.out.println(((ClientConnection) connection)
+                        .getNickname() + " disconnected.");
+                break;
             }
+            System.out.println("Received: " + clientInput);
             String[] inputSplit = clientInput
                     .split(ProtocolDB.COMMAND_DELIMITER);
             if (ProtocolDB.CLIENTCONNECT_COMMAND.equals(inputSplit[0])) {
@@ -43,8 +47,11 @@ public class Listener implements Runnable {
                 connection.getChatServer().clientDisconnect(
                         (ClientConnection) connection);
             } else if (ProtocolDB.CLIENTMESSAGE_COMMAND.equals(inputSplit[0])) {
+                String message = "";
+                if (inputSplit.length > 1)
+                    message = inputSplit[1];
                 connection.getChatServer().clientMessage(
-                        (ClientConnection) connection, inputSplit[1]);
+                        (ClientConnection) connection, message);
             }
         }
     }

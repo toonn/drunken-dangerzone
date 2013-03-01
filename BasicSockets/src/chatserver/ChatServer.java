@@ -61,12 +61,12 @@ public class ChatServer {
      * @param nickname
      */
     public void clientConnect(ClientConnection clientConnection, String nickname) {
-        boolean unique = false;
+        boolean unique = true;
         for (ClientConnection client : clientConnections)
-            if (unique)
+            if (!unique)
                 break;
             else
-                unique = (nickname.equals(client.getNickname()));
+                unique = (!nickname.equals(client.getNickname()));
 
         if (unique) {
             clientConnection.setNickname(nickname);
@@ -98,8 +98,11 @@ public class ChatServer {
      */
     public void clientMessage(ClientConnection clientConnection,
             String messageText) {
-        String[] message = { messageText, clientConnection.getNickname() };
-        clientConnection.send(ProtocolDB.SERVERMESSAGE_COMMAND, message);
+        String nickname = clientConnection.getNickname();
+        String[] message = { messageText, nickname };
+        for (ClientConnection receiver : clientConnections)
+            if (!nickname.equals(receiver.getNickname()))
+                receiver.send(ProtocolDB.SERVERMESSAGE_COMMAND, message);
     }
 
     /*************
