@@ -1,0 +1,38 @@
+package chatserver;
+
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+/**
+ * The Listener will listen for incomming packets and will parse them.
+ */
+public class Listener implements Runnable {
+    /**
+     * Create a new listener for the given socket
+     * 
+     * @param server
+     * @throws IOException
+     *             There was an IO problem creating the input stream for this
+     *             listener
+     */
+    public Listener(Connection connection) throws IOException {
+        this.connection = connection;
+        in = new DataInputStream(connection.getSocket().getInputStream());
+    }
+
+    /**
+     * Keep listening for incoming messages from the socket of this Listener and
+     * parse the messages.
+     */
+    @Override
+    public void run() {
+        while (true) {
+            String clientInput = in.readUTF();
+        }
+    }
+
+    private Connection connection;
+    private DataInputStream in;
+
+}
