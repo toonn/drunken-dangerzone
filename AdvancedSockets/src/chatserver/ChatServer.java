@@ -3,7 +3,10 @@ package chatserver;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.TimerTask;
 import java.util.Vector;
 import java.util.Timer;
 import java.io.BufferedReader;
@@ -69,9 +72,32 @@ public class ChatServer {
                 System.out.println("Listening for connecting servers on port "
                         + ServerConfig.getLocalServerPort());
 
-                // *************************
-                // TODO: ADD YOUR CODE HERE
-                // *************************
+                // if (ServerConfig.getNbOtherServers() >
+                // serverConnections.size())
+
+                // Attempt to connect to all known servers
+                // TODO Connection attempts could fail, try again? (loop)
+                for (int serverIndex = 0; serverIndex < ServerConfig
+                        .getNbOtherServers(); serverIndex++) {
+                    // Get hostname and port number for the next connection
+                    String remoteServerName = ServerConfig
+                            .getRemoteServer(serverIndex);
+                    int remoteServerPort = ServerConfig
+                            .getRemoteServerPort(serverIndex);
+                    // Attempt to create a connection with the server
+                    Socket newRemoteServerSocket = new Socket(remoteServerName,
+                            remoteServerPort);
+                    // Create a new ServerConnection for the remote chatserver
+                    new ServerConnection(newRemoteServerSocket, chatServer);
+                }
+
+                // Start listening for incoming connections from servers
+                while (true) {
+                    // Listen for connection on "getLocalServerPort"
+                    Socket remoteChatServerSocket = listenSocket.accept();
+                    // Create a new ServerConnection for the incoming connection
+                    new ServerConnection(remoteChatServerSocket, chatServer);
+                }
 
             } catch (IllegalStateException e) {
                 e.printStackTrace();
@@ -118,7 +144,6 @@ public class ChatServer {
      */
     public void stopServer() {
         System.out.println("The server is stopping");
-        String[] nickName = new String[1];
 
         for (int i = 0; i < clientConnections.size(); i++) {
             sendToServers(
@@ -149,27 +174,40 @@ public class ChatServer {
                             + nickname
                             + " failed to connect to the chat network. Nickname in use.");
             clientConnection.send(ProtocolDB.REJECTED_COMMAND, null);
-            // otherwise, start a vote round for the nickname
-        } else {
+            // TODO throw away the connection?
+            clientConnections.remove(clientConnection);
+        }
+        // otherwise, start a vote round for the nickname
+        else {
             votedNicknames.add(nickname);
-
-            // *************************
-            // TODO: ADD YOUR CODE HERE
-            // *************************
-
-            clientConnection.setConnected(true); // YOU HAVE TO CHANGE THIS!
-            clientConnection.setNickname(nickname); // YOU HAVE TO CHANGE THIS!
-            clientConnection.send(ProtocolDB.ACCEPTED_COMMAND, null); // YOU
-                                                                      // HAVE TO
-                                                                      // CHANGE
-                                                                      // THIS!
-
+            // Ask for votes
+            sendToServers(ProtocolDB.CHECK_NICKNAME_COMMAND,
+                    new String[] { nickname });
+            // If you don't receive enough votes after 3 seconds, reject the
+            // nickname
+            new Timer()
+                    .schedule(new RejectNicknameTask(clientConnection), 3000);
         }
     }
 
-    // *************************
-    // TODO: ADD YOUR CODE HERE (is for the Timer)
-    // *************************
+    // TODO If you remove timer, when do you reject a client?
+    private class RejectNicknameTask extends TimerTask {
+        public RejectNicknameTask(ClientConnection client) {
+            this.clientToRejectOnTimeOut = client;
+        }
+
+        @Override
+        public void run() {
+            // Inform client of rejection
+            clientToRejectOnTimeOut.send(ProtocolDB.REJECTED_COMMAND, null);
+            // Forget about the client's connection
+            clientConnections.remove(clientToRejectOnTimeOut);
+            // Forget one instance of the nickname from votedNicknames
+            releaseNickname(clientToRejectOnTimeOut.getNickname());
+        }
+
+        private ClientConnection clientToRejectOnTimeOut;
+    }
 
     /**
      * Connect a server to the chat network.
@@ -177,11 +215,12 @@ public class ChatServer {
      * @param connection
      */
     public void serverConnect(ServerConnection serverConnection) {
+        // Add the connection to our vector of connected servers
+        serverConnections.add(serverConnection);
 
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
-
+        // TODO Set up connection in the other direction?
+        // Notify incoming chatserver with SERVER_CONNECT message
+        serverConnection.send(ProtocolDB.SERVERCONNECT_COMMAND, null);
     }
 
     /**
@@ -207,11 +246,9 @@ public class ChatServer {
      * @param serverConnection
      */
     public void serverDisconnect(ServerConnection serverConnection) {
-
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
-
+        // Remove the server from our vector, so we no longer try to send
+        // messages to it
+        serverConnections.remove(serverConnection);
     }
 
     /**
@@ -232,13 +269,12 @@ public class ChatServer {
         outArguments[1] = nickname;
 
         // Send to all your other connected clients
-        sendToClientsExcept(nickname, ProtocolDB.SERVERMESSAGE_COMMAND,
+        // TODO changed to CLIENTMESSAGE instead of SERVERMESSAGE?
+        sendToClientsExcept(nickname, ProtocolDB.CLIENTMESSAGE_COMMAND,
                 outArguments);
 
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
-
+        // Send to all your connected chatservers
+        sendToServers(ProtocolDB.SERVERMESSAGE_COMMAND, outArguments);
     }
 
     /**
@@ -248,11 +284,9 @@ public class ChatServer {
      * @param nickname
      */
     public void serverMessage(String messageText, String nickname) {
-
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
-
+        // Send incoming chat messages to all connected clients
+        sendToClients(ProtocolDB.CLIENTMESSAGE_COMMAND, new String[] {
+                messageText, nickname });
     }
 
     /**
@@ -263,11 +297,16 @@ public class ChatServer {
      * @param nickname
      */
     public void checkNickname(ServerConnection serverConnection, String nickname) {
-
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
-
+        // If the nickname isn't in votedNicknames then it is unique
+        boolean nicknameUnique = !votedNicknames.contains(nickname);
+        // Add the nickname to our vector (for future checks)
+        votedNicknames.add(nickname);
+        // If the nickname was indeed unique, send a vote back to the server
+        // that requested it
+        if (nicknameUnique) {
+            serverConnection.send(ProtocolDB.VOTE_COMMAND,
+                    new String[] { nickname });
+        }
     }
 
     /**
@@ -277,12 +316,48 @@ public class ChatServer {
      * @param nickname
      */
     public void vote(String nickname) {
+        boolean clientRejectedOnTimeOut = true;
+        // Check if the client with this nickname is already connected, if so
+        // then stop (ACCEPTED messages will only be sent once)
+        for (ClientConnection client : clientConnections)
+            if (nickname.equals(client.getNickname()) && client.isConnected())
+                return;
+            else if (nickname.equals(client.getNickname()))
+                // If a client with nickname still exists it has not been
+                // rejected because of a timeout yet
+                clientRejectedOnTimeOut = false;
 
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
+        // If no connected client has the name nickname, then the client must
+        // have been rejected
+        if (clientRejectedOnTimeOut)
+            return;
 
+        // If this is the first vote for this nickname create an entry in
+        // nicknameVotes, otherwise increment it
+        if (nicknameVotes.get(nickname) == null)
+            nicknameVotes.put(nickname, 1);
+        else
+            nicknameVotes.put(nickname, nicknameVotes.get(nickname) + 1);
+
+        // If this nickname has enough votes, accept it's connection
+        // (integer + 1) / 2, gives ceiling(integer/2) for java integer division
+        // why ceiling(int/2)? -> ceil(nbOfConnections/2) is the smallest number
+        // of votes needed for a majority; ceil(nbOfConnections/2) + 1(your own
+        // vote) > totalNbOfPossibleVotes/2
+        if (nicknameVotes.get(nickname) > (serverConnections.size() + 1) / 2) {
+            // Remove the vote count for this nickname incase it is requested
+            // again in the future (so the count will start from zero)
+            nicknameVotes.remove(nickname);
+            // Connect the right client and send an ACCEPTED message
+            for (ClientConnection client : clientConnections)
+                if (nickname.equals(client.getNickname())) {
+                    client.setConnected(true);
+                    client.send(ProtocolDB.ACCEPTED_COMMAND, null);
+                }
+        }
     }
+
+    private Map<String, Integer> nicknameVotes = new HashMap<String, Integer>();
 
     /**
      * Release the given nickname from the list of taken nicknames of this
@@ -291,11 +366,8 @@ public class ChatServer {
      * @param nickname
      */
     public void releaseNickname(String nickname) {
-
-        // *************************
-        // TODO: ADD YOUR CODE HERE
-        // *************************
-
+        // Forget one instance of the nickname from the votedNicknames vector
+        votedNicknames.remove(nickname);
     }
 
     /*******************
@@ -356,6 +428,4 @@ public class ChatServer {
     private Vector<ClientConnection> clientConnections;
     private Vector<ServerConnection> serverConnections;
     private Vector<String> votedNicknames;
-    private Timer timer;
-
 }
