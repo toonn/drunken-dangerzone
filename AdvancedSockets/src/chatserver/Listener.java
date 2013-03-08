@@ -46,12 +46,9 @@ public class Listener implements Runnable {
                     connection.getChatServer().clientDisconnect(
                             (ClientConnection) connection);
                 } else if (command[0].equals(ProtocolDB.CLIENTMESSAGE_COMMAND)) {
-                    // connection.getChatServer().clientMessage(
-                    // (ClientConnection) connection, command[1]);
-
-                    // TODO ? Avoids crashing chatserver when someone sends an
-                    // empty
-                    // message
+                    // Avoids crashing chatserver when someone sends an empty
+                    // message (command[1] would give an
+                    // arrayOutOfBoundsException)
                     String message = "";
                     if (command.length > 1)
                         message = command[1];
