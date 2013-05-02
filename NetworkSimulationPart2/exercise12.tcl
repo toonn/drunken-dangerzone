@@ -20,7 +20,7 @@ proc finish {} {
 	close $tf
 	close $nf
 
-	exec nam /tmp/ex1.out.nam &
+	#exec nam /tmp/ex1.out.nam &
 	exit 0
 }
 

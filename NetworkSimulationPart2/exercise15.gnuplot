@@ -1,5 +1,5 @@
 set terminal pngcairo
-set output 'ftp_cbr30k_througput.png'
+set output 'ftp_cbr30k_throughput.png'
 
 set title "Up/Down throughput"
 set xlabel "time(s)"
